@@ -13,6 +13,13 @@
 
 #include <MQTTClient.h>
 
+extern int suggestedAngle;
+extern int currentAngle;
+extern int currentX;
+extern int currentY;
+extern int targetX;
+extern int targetY;
+
 void messageHandler(String, String);
 class myawsclass {
   public:
@@ -20,7 +27,7 @@ class myawsclass {
 
     void connectAWS();                            /* Initialize and connect to AWS */
     void publishMessage(int16_t sensorValue);     /* Publish the values of the sensors */
-    void stayConnected();                         /* Maintain the connection */
+    bool stayConnected();                         /* Maintain the connection */
 };
 
 extern myawsclass awsobject;

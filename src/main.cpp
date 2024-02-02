@@ -1,6 +1,10 @@
 #include <Arduino.h>
 #include "motorDriver.h"
+#include "AWS.h"
 #include <sensorDriver.h>
+#include <math.h>
+
+myawsclass awsClient;
 
 void motorDriver( void * parameter);
 void sensorDriver( void * parameter);
@@ -13,11 +17,10 @@ static uint8_t motorChannel2 = 18;  /* PWM Pin for Motor 0 */
 
 void setup(){
   Serial.begin(9600);
+  awsClient.connectAWS();
   delay(1000);
-
+  
   s.SETUP();
-
-
   xTaskCreate(
     motorDriver,          /* Task function. */
     "MotorDriver",        /* String with name of task. */
@@ -35,30 +38,32 @@ void setup(){
     1,                /* Priority of the task. */
     NULL
   );            /* Task handle. */
+
 }
 
 void loop(){
-  delay(1000);
+  if(awsClient.stayConnected() == false)
+  {
+    awsClient.connectAWS();
+  }
+  delay(10);
+  // awsClient.publishMessage(3);
 }
 
 void motorDriver( void * parameter )
 {
-
   mclass m;
-
   m.SETUP();
-
   //example of a task that executes for some time and then is deleted
   while(1)
   {
-    Serial.println("Motor Control");
-    
-    m.set_speed(MotorR,Forward,motorSpeedR);
+    /*
+    int vectorx = targetX - currentX;
+    int vectory = targetY - currentY;
+    Serial.println(atan2(vectory, vectorx));
+    */
 
-    m.set_speed(MotorL,Forward,motorSpeedL);
-    
     vTaskDelay(100 / portTICK_PERIOD_MS);
-
   }
 
   vTaskDelete( NULL );
@@ -67,7 +72,6 @@ void motorDriver( void * parameter )
 void sensorDriver( void * parameter )
 {
   int16_t* arr;
-
   //example of a task that executes for some time and then is deleted
   while(1)
   {
@@ -88,6 +92,5 @@ void sensorDriver( void * parameter )
     vTaskDelay(10/ portTICK_PERIOD_MS);
 
   }
-
   vTaskDelete( NULL );
 }

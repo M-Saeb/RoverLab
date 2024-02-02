@@ -31,7 +31,9 @@
 
 /* The MQTT topics that this device should publish/subscribe to */
 #define AWS_IOT_PUBLISH_TOPIC   "esp32/pub" 
-#define AWS_IOT_SUBSCRIBE_TOPIC "esp32/target"
+// #define AWS_IOT_SUBSCRIBE_ROVER_TOPIC "esp32/target"
+#define AWS_IOT_SUBSCRIBE_ROVER_TOPIC "esp32/rover"
+#define AWS_IOT_SUBSCRIBE_TARGET_TOPIC "esp32/target"
 
 WiFiClientSecure net = WiFiClientSecure();
 MQTTClient client = MQTTClient(256);
@@ -40,17 +42,44 @@ myawsclass::myawsclass() {
 
 }
 
+int suggestedAngle;
+int currentAngle;
+int currentX;
+int currentY;
+int targetX;
+int targetY;
+
 
 void messageHandler(String &topic, String &payload) {
   Serial.println("incoming: " + topic + " - " + payload);
-
-//  StaticJsonDocument<200> doc;
-//  deserializeJson(doc, payload);
-//  const char* message = doc["message"];
+  StaticJsonDocument<200> doc;
+  deserializeJson(doc, payload);
+  /*
+  if(topic == "esp32/rover")
+  {
+    if (strlen(doc["rover"]) > 10){
+      return;
+    }
+    sscanf(doc["rover"], "{21: [(%d, %d), %d]}", &currentX, &currentY, &currentAngle);
+  }
+  else if (topic == "esp32/target")
+  {
+    if (strlen(doc["target"]) > 10){
+      return;
+    }
+    // Use sscanf to extract integers from the string
+    sscanf(doc["target"], "(%d, %d)", &targetX, &targetY);
+  }
+  */
 }
 
-void myawsclass::stayConnected() {
-  client.loop();
+bool myawsclass::stayConnected() {
+  if(client.loop() == false)
+  {
+    return false;
+  }
+
+  return true;
 }
 
 void myawsclass::connectAWS() {
@@ -78,7 +107,7 @@ void myawsclass::connectAWS() {
   /* Create a message handler */
   client.onMessage(messageHandler);
 
-  Serial.print("Connecting to AWS IOT");
+  Serial.println("Connecting to AWS IOT");
 
   while (!client.connect(THINGNAME)) {
     Serial.print(".");
@@ -92,7 +121,8 @@ void myawsclass::connectAWS() {
   }
 
   /* Subscribe to a topic */
-  client.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
+  client.subscribe(AWS_IOT_SUBSCRIBE_ROVER_TOPIC);
+  client.subscribe(AWS_IOT_SUBSCRIBE_TARGET_TOPIC);
 
   Serial.println("AWS IoT Connected!");
 }
