@@ -51,26 +51,33 @@ int targetY;
 
 
 void messageHandler(String &topic, String &payload) {
-  Serial.println("incoming: " + topic + " - " + payload);
+  
   StaticJsonDocument<200> doc;
   deserializeJson(doc, payload);
-  /*
+  
   if(topic == "esp32/rover")
   {
-    if (strlen(doc["rover"]) > 10){
+    if (strlen(doc["rover"]) > 40){
       return;
     }
     sscanf(doc["rover"], "{21: [(%d, %d), %d]}", &currentX, &currentY, &currentAngle);
+    currentAngle = -currentAngle;
+
+    if(currentAngle < 0)
+    {
+      currentAngle +=  360;
+    }
   }
   else if (topic == "esp32/target")
   {
-    if (strlen(doc["target"]) > 10){
+    if (strlen(doc["target"]) > 20){
       return;
     }
     // Use sscanf to extract integers from the string
     sscanf(doc["target"], "(%d, %d)", &targetX, &targetY);
+    
   }
-  */
+  
 }
 
 bool myawsclass::stayConnected() {
