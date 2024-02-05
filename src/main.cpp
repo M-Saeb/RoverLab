@@ -18,26 +18,23 @@ static uint8_t motorChannel1 = 5;   /* PWM Pin for Motor 0 */
 static uint8_t motorChannel2 = 18;  /* PWM Pin for Motor 0 */
 
 
-double Kp = 0.3, Ki = 0.01, Kd = 0.2;
-double integral = 0.0;
-double previousError = 0.0;
 
 double distance;
 
-int lookupTable[]  = {
-  -255, -253, -251, -249, -247, -245, -243, -241, -239, -237, -235, -233, -231, -229, -227, -225, -223, -221, -219, -217, -215,
-  -213, -211, -209, -207, -205, -203, -201, -199, -197, -195, -193, -191, -189, -187, -185, -183, -181, -179, -177, -175, -173,
-  -171, -169, -167, -165, -163, -161, -159, -157, -155, -153, -151, -149, -147, -145, -143, -141, -139, -137, -135, -133, -131,
-  -129, -127, -125, -123, -121, -119, -117, -115, -113, -111, -109, -107, -105, -103, -101, -99, -97, -95, -93, -91, -89, -87,
-  -85, -83, -81, -79, -77, -75, -73, -71, -69, -67, -65, -63, -61, -59, -57, -55, -53, -51, -49, -49, -49, -49, -49, -49, -49,
-  -49, -47, -45, -43, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -0, -0, -0, -0, 0, 0, 0, 0, 41, 41, 41, 41, 41, 41, 41,
-  41, 41, 41, 43, 45, 47, 49, 49, 49, 49, 49, 49, 49, 49, 51, 53, 55, 57, 59, 61, 63, 65, 67, 69, 71, 73, 75, 77, 79, 81, 83,
-  85, 87, 89, 91, 93, 95, 97, 99, 101, 103, 105, 107, 109, 111, 113, 115, 117, 119, 121, 123, 125, 127, 129, 131, 133, 135, 137,
-  139, 141, 143, 145, 147, 149, 151, 153, 155, 157, 159, 161, 163, 165, 167, 169, 171, 173, 175, 177, 179, 181, 183, 185, 187, 189,
-  191, 193, 195, 197, 199, 201, 203, 205, 207, 209, 211, 213, 215, 217, 219, 221, 223, 225, 227, 229, 231, 233, 235, 237, 239, 241,
-  243, 245, 247, 249, 251, 253, 255
+int16_t* arr;
+
+int16_t sensorDat[3];
+
+enum State {
+  Navigation,
+  ObstacleAvoidance,
+  Correction
 };
 
+State currentState = Navigation;
+unsigned long lastObstacleDetectedTime = 0; // Time when the last obstacle was detected
+unsigned long lastNavigTrigger = 0; // Time when the last obstacle was detected
+const unsigned long recoveryTime = 1000; // Time to spend in recovery state, for example
 
 
 
@@ -90,30 +87,94 @@ double calculateDirectionError() {
 }
 
 void navigateToTarget() {
-    double error = calculateDirectionError();  
-    integral += error;
-    
-    double derivative = error - previousError;
-    double adjustment = Kp*error + Ki*integral + Kd*derivative;  // PID formula
-    
-    // Calculate motor speed adjustments based on PID adjustment
-    if(error > 5 && distance > 40)
-    {
-      motorSpeedL = 60;
-      motorSpeedR = -60;
-    }
-    else if(error < -5 && distance > 40)
-    {
-      motorSpeedL = -60;
-      motorSpeedR = 60;
-    }
-    else{
+  double error = calculateDirectionError();  
+
+  bool leftObjectDetected = sensorDat[0] < 150 ;
+  bool centerObjectDetected = sensorDat[1] < 150;
+  bool rightObjectDetected = sensorDat[2] < 150;
+
+  switch (currentState) {
+    case Navigation:
+
+      if (leftObjectDetected || centerObjectDetected || rightObjectDetected) {
+        currentState = ObstacleAvoidance;
+        lastObstacleDetectedTime = millis();
+        break;
+      }
+      else if(error < -15 || error >15)
+      {
+        if(lastNavigTrigger - millis() > 300)
+        {
+          currentState = Correction;
+          break;
+        }
+        
+        
+      }
+
       motorSpeedL = 150;
       motorSpeedR = 150;
-    }
+      
 
 
+      
+      break;
 
+    case ObstacleAvoidance:
+      if (centerObjectDetected)
+      {
+        if(sensorDat[1] < sensorDat[2])
+        {
+          motorSpeedL = 150;
+          motorSpeedR = -150;
+        }
+        else
+        {
+          motorSpeedL = -150;
+          motorSpeedR = 150;
+        }
+      }
+      else if(leftObjectDetected)
+      {
+        motorSpeedL = 200;
+        motorSpeedR = 0;
+      }else if (rightObjectDetected)
+      {
+        motorSpeedL = 0;
+        motorSpeedR = 200;
+      }
+      
+ 
+      if(!leftObjectDetected && !centerObjectDetected && !rightObjectDetected)
+      {
+        if(lastObstacleDetectedTime - millis() > 300)
+        {
+          currentState = Navigation;
+          lastNavigTrigger = millis();
+        }
+      }
+
+      break;
+
+    case Correction:
+      // Recovery state logic
+      if(error > 5 && distance > 40)
+      {
+        motorSpeedL = 80;
+        motorSpeedR = -80;
+      }
+      else if(error < -5 && distance > 40)
+      {
+        motorSpeedL = -80;
+        motorSpeedR = 80;
+      }
+      else
+      {
+        currentState = Navigation;
+        lastNavigTrigger = millis();
+      }
+      break;
+  }
 
     if(motorSpeedL < -255)
     {
@@ -132,9 +193,6 @@ void navigateToTarget() {
     {
       motorSpeedR = 255;
     }
-    
-    // Update for next iteration
-    previousError = error;
 }
 
 void loop(){
@@ -180,11 +238,9 @@ void motorDriver( void * parameter )
       m.set_speed(MotorR,Backward,-motorSpeedR);
     }
 
-    Serial.println(lookupTable[127]);
-
     
 
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 
   vTaskDelete( NULL );
@@ -192,24 +248,15 @@ void motorDriver( void * parameter )
 
 void sensorDriver( void * parameter )
 {
-  int16_t* arr;
+  
   
   while(1)
   {
-    // arr = s.reading();
-  
-    // bool leftObjectDetected = arr[0] < 200;
-    // bool centerObjectDetected = arr[1] < 200;
-    // bool rightObjectDetected = arr[2] < 200;
+    arr = s.reading();
 
-    // if (leftObjectDetected || centerObjectDetected || rightObjectDetected){
-    //   motorSpeedL = 0;
-    //   motorSpeedR = 0;
-    //   continue;
-    // }
-
-    // motorSpeedL = 255;
-    // motorSpeedR = 255;
+    sensorDat[0] = arr[0];
+    sensorDat[1] = arr[1];
+    sensorDat[2] = arr[2];
  
     vTaskDelay(10/ portTICK_PERIOD_MS);
 
