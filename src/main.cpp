@@ -26,12 +26,13 @@ int16_t* arr;
 int16_t sensorDat[3];
 
 enum State {
+  IDLE,
   Navigation,
   ObstacleAvoidance,
   Correction
 };
 
-State currentState = Navigation;
+State currentState = IDLE;
 unsigned long lastObstacleDetectedTime = 0; // Time when the last obstacle was detected
 unsigned long lastNavigTrigger = 0; // Time when the last obstacle was detected
 const unsigned long recoveryTime = 1000; // Time to spend in recovery state, for example
@@ -89,11 +90,18 @@ double calculateDirectionError() {
 void navigateToTarget() {
   double error = calculateDirectionError();  
 
-  bool leftObjectDetected = sensorDat[0] < 150 ;
-  bool centerObjectDetected = sensorDat[1] < 150;
-  bool rightObjectDetected = sensorDat[2] < 150;
+  bool leftObjectDetected = sensorDat[0] < 200 ;
+  bool centerObjectDetected = sensorDat[1] < 200;
+  bool rightObjectDetected = sensorDat[2] < 200;
 
+  
   switch (currentState) {
+    case IDLE:
+      if(targetMessageReceived == true && roverMessageReceived == true)
+      {
+        currentState = Correction;
+      }
+      break;
     case Navigation:
 
       if (leftObjectDetected || centerObjectDetected || rightObjectDetected) {
@@ -101,9 +109,12 @@ void navigateToTarget() {
         lastObstacleDetectedTime = millis();
         break;
       }
-      else if(error < -15 || error >15)
+
+
+      
+      if(error < -20 || error >20)
       {
-        if(lastNavigTrigger - millis() > 300)
+        if( millis() - lastNavigTrigger  > 1000)
         {
           currentState = Correction;
           break;
@@ -115,14 +126,20 @@ void navigateToTarget() {
       motorSpeedL = 150;
       motorSpeedR = 150;
       
-
-
-      
+  
       break;
 
     case ObstacleAvoidance:
+      
       if (centerObjectDetected)
       {
+        if(leftObjectDetected && rightObjectDetected)
+        {
+          motorSpeedL = -150;
+          motorSpeedR = -150;
+          break;
+        }
+
         if(sensorDat[1] < sensorDat[2])
         {
           motorSpeedL = 150;
@@ -137,17 +154,17 @@ void navigateToTarget() {
       else if(leftObjectDetected)
       {
         motorSpeedL = 200;
-        motorSpeedR = 0;
+        motorSpeedR = -200 ;
       }else if (rightObjectDetected)
       {
-        motorSpeedL = 0;
+        motorSpeedL = -200;
         motorSpeedR = 200;
       }
       
  
       if(!leftObjectDetected && !centerObjectDetected && !rightObjectDetected)
       {
-        if(lastObstacleDetectedTime - millis() > 300)
+        if(millis() - lastObstacleDetectedTime  > 300)
         {
           currentState = Navigation;
           lastNavigTrigger = millis();
@@ -158,15 +175,16 @@ void navigateToTarget() {
 
     case Correction:
       // Recovery state logic
-      if(error > 5 && distance > 40)
+
+      if(error > 10 && distance > 40)
       {
-        motorSpeedL = 80;
-        motorSpeedR = -80;
+        motorSpeedL = 100;
+        motorSpeedR = -100;
       }
-      else if(error < -5 && distance > 40)
+      else if(error < -10 && distance > 40)
       {
-        motorSpeedL = -80;
-        motorSpeedR = 80;
+        motorSpeedL = -100;
+        motorSpeedR = 100;
       }
       else
       {
@@ -208,11 +226,31 @@ void motorDriver( void * parameter )
 {
   mclass m;
   m.SETUP();
+
+  int finishedCounter = 0;
   //example of a task that executes for some time and then is deleted
   while(1)
   {
     
     navigateToTarget();
+
+    if(messageFlag == true)
+    {
+      
+      finishedCounter = 0;
+      messageFlag = false;
+    }
+    else{
+      if(finishedCounter > 100)
+      {
+        currentState = IDLE;
+        roverMessageReceived = false;
+        targetMessageReceived = false;
+        motorSpeedL = 0 ;
+        motorSpeedR = 0;
+      }
+      finishedCounter++;
+    }
 
 
     Serial.print(motorSpeedL);
@@ -257,8 +295,14 @@ void sensorDriver( void * parameter )
     sensorDat[0] = arr[0];
     sensorDat[1] = arr[1];
     sensorDat[2] = arr[2];
+
+    // Serial.print(arr[0]);
+    // Serial.print(" "); // Print a space as a separatr
+    // Serial.print(arr[1]);
+    // Serial.print(" "); // Print a space as a separator
+    // Serial.println(arr[2]);
  
-    vTaskDelay(10/ portTICK_PERIOD_MS);
+    vTaskDelay(5/ portTICK_PERIOD_MS);
 
   }
 

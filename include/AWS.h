@@ -20,6 +20,10 @@ extern int currentY;
 extern int targetX;
 extern int targetY;
 
+extern bool targetMessageReceived;
+extern bool roverMessageReceived;
+extern bool messageFlag;
+
 void messageHandler(String, String);
 class myawsclass {
   public:

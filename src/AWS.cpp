@@ -49,19 +49,31 @@ int currentY;
 int targetX;
 int targetY;
 
+int conter = 0;
+
+bool targetMessageReceived = false;
+bool roverMessageReceived = false;
+
+bool messageFlag = false;
 
 void messageHandler(String &topic, String &payload) {
   
   StaticJsonDocument<200> doc;
   deserializeJson(doc, payload);
+  messageFlag = true;
   
   if(topic == "esp32/rover")
   {
+    roverMessageReceived = true;
     if (strlen(doc["rover"]) > 40){
       return;
     }
-    sscanf(doc["rover"], "{21: [(%d, %d), %d]}", &currentX, &currentY, &currentAngle);
-    currentAngle = -currentAngle;
+
+    if (strlen(doc["rover"]) > 5){
+      sscanf(doc["rover"], "{21: [(%d, %d), %d]}", &currentX, &currentY, &currentAngle);
+      currentAngle = -currentAngle;
+    }
+    
 
     if(currentAngle < 0)
     {
@@ -70,11 +82,16 @@ void messageHandler(String &topic, String &payload) {
   }
   else if (topic == "esp32/target")
   {
+    targetMessageReceived = true;
     if (strlen(doc["target"]) > 20){
       return;
     }
+
+    if (strlen(doc["target"]) > 5){
+      sscanf(doc["target"], "(%d, %d)", &targetX, &targetY);
+    }
     // Use sscanf to extract integers from the string
-    sscanf(doc["target"], "(%d, %d)", &targetX, &targetY);
+    
     
   }
   
@@ -83,6 +100,7 @@ void messageHandler(String &topic, String &payload) {
 bool myawsclass::stayConnected() {
   if(client.loop() == false)
   {
+    
     return false;
   }
 
