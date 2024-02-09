@@ -87,12 +87,14 @@ double calculateDirectionError() {
     return angleError;
 }
 
+int adj = 0;
+
 void navigateToTarget() {
   double error = calculateDirectionError();  
 
-  bool leftObjectDetected = sensorDat[0] < 200 ;
-  bool centerObjectDetected = sensorDat[1] < 200;
-  bool rightObjectDetected = sensorDat[2] < 200;
+  bool leftObjectDetected = sensorDat[0] < 150 ;
+  bool centerObjectDetected = sensorDat[1] < 100;
+  bool rightObjectDetected = sensorDat[2] < 150;
 
   
   switch (currentState) {
@@ -104,17 +106,20 @@ void navigateToTarget() {
       break;
     case Navigation:
 
-      if (leftObjectDetected || centerObjectDetected || rightObjectDetected) {
-        currentState = ObstacleAvoidance;
+      if (leftObjectDetected || centerObjectDetected || rightObjectDetected) 
+      {     
+        if( millis() - lastNavigTrigger  > 200)
+        {
+          currentState = ObstacleAvoidance;
+        }
         lastObstacleDetectedTime = millis();
         break;
+        
       }
-
-
-      
+ 
       if(error < -20 || error >20)
       {
-        if( millis() - lastNavigTrigger  > 1000)
+        if( millis() - lastNavigTrigger  > 2000)
         {
           currentState = Correction;
           break;
@@ -123,8 +128,19 @@ void navigateToTarget() {
         
       }
 
-      motorSpeedL = 150;
-      motorSpeedR = 150;
+      adj = 0;
+
+      if((sensorDat[0] < sensorDat[2] ) && (sensorDat[0] < 350 && sensorDat[2] > 350) )
+      {
+        adj = 40;
+      }
+      else if((sensorDat[0] > sensorDat[2] ) && (sensorDat[0] > 350 && sensorDat[2] < 350))
+      {
+        adj = -40;
+      }
+
+      motorSpeedL = 150 + adj;
+      motorSpeedR = 150 - adj;
       
   
       break;
@@ -161,13 +177,14 @@ void navigateToTarget() {
         motorSpeedR = 200;
       }
       
- 
-      if(!leftObjectDetected && !centerObjectDetected && !rightObjectDetected)
+
+      if(!leftObjectDetected && !centerObjectDetected  && !rightObjectDetected)
       {
+        
         if(millis() - lastObstacleDetectedTime  > 300)
         {
           currentState = Navigation;
-          lastNavigTrigger = millis();
+          lastNavigTrigger = millis() ;
         }
       }
 
@@ -175,6 +192,20 @@ void navigateToTarget() {
 
     case Correction:
       // Recovery state logic
+      leftObjectDetected = sensorDat[0] < 50 ;
+      centerObjectDetected = sensorDat[1] < 50;
+      rightObjectDetected = sensorDat[2] < 50;
+
+      if (leftObjectDetected || centerObjectDetected || rightObjectDetected) {
+        
+        currentState = ObstacleAvoidance;
+        lastObstacleDetectedTime = millis();
+        break;
+        
+        
+        
+        
+      }
 
       if(error > 10 && distance > 40)
       {
@@ -189,7 +220,6 @@ void navigateToTarget() {
       else
       {
         currentState = Navigation;
-        lastNavigTrigger = millis();
       }
       break;
   }
@@ -211,6 +241,8 @@ void navigateToTarget() {
     {
       motorSpeedR = 255;
     }
+
+    
 }
 
 void loop(){
@@ -296,11 +328,11 @@ void sensorDriver( void * parameter )
     sensorDat[1] = arr[1];
     sensorDat[2] = arr[2];
 
-    // Serial.print(arr[0]);
-    // Serial.print(" "); // Print a space as a separatr
-    // Serial.print(arr[1]);
-    // Serial.print(" "); // Print a space as a separator
-    // Serial.println(arr[2]);
+    Serial.print(arr[0]);
+    Serial.print(" "); // Print a space as a separatr
+    Serial.print(arr[1]);
+    Serial.print(" "); // Print a space as a separator
+    Serial.println(arr[2]);
  
     vTaskDelay(5/ portTICK_PERIOD_MS);
 
