@@ -132,11 +132,11 @@ void navigateToTarget() {
 
       if((sensorDat[0] < sensorDat[2] ) && (sensorDat[0] < 350 && sensorDat[2] > 350) )
       {
-        adj = 40;
+        adj = 0;
       }
       else if((sensorDat[0] > sensorDat[2] ) && (sensorDat[0] > 350 && sensorDat[2] < 350))
       {
-        adj = -40;
+        adj = 0;
       }
 
       motorSpeedL = 150 + adj;
