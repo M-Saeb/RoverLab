@@ -62,8 +62,11 @@ void setup()
         NULL);          /* Task handle. */
 }
 
+
+// Mathematical function to calculate the error and converting it to degrees
 double calculateDirectionError()
 {
+    
     double desiredAngle = atan2(targetY - currentY, targetX - currentX) * 180 / M_PI;
     double angleError = desiredAngle - currentAngle;
 
@@ -89,8 +92,10 @@ int adj = 0;
 
 void navigateToTarget()
 {
+    // Calculate the error between the vector to the target and rovers attitude
     double error = calculateDirectionError();
 
+    // Thresholds for object detection from each side respectively
     bool leftObjectDetected = sensorDat[0] < 150;
     bool centerObjectDetected = sensorDat[1] < 100;
     bool rightObjectDetected = sensorDat[2] < 150;
@@ -98,24 +103,35 @@ void navigateToTarget()
     switch (currentState)
     {
     case IDLE:
+        // Flags for activating the Rover scenario, these values are only true if the rover is receiving messages from AWS
         if (targetMessageReceived == true && roverMessageReceived == true)
         {
+            //State transition to Correction
             currentState = Correction;
         }
         break;
     case Navigation:
+
+        // Check for detected objects
         if (leftObjectDetected || centerObjectDetected || rightObjectDetected)
         {
+            // This timer ensures the navigation will run at least 200 milliseconds regardless of sensor value
             if (millis() - lastNavigTrigger > 200)
             {
+                //State Transition
                 currentState = ObstacleAvoidance;
             }
+
+            // Timer rebase for obstacle detection
             lastObstacleDetectedTime = millis();
+
             break;
         }
 
+        // Thresholds for error of angle from the vector to the target
         if (error < -20 || error > 20)
         {
+            // This timer ensures the navigation after error correction is ran at least 2000 milliseconds
             if (millis() - lastNavigTrigger > 2000)
             {
                 currentState = Correction;
@@ -123,15 +139,16 @@ void navigateToTarget()
             }
         }
 
-        adj = 0;
+      adj = 0;
 
+      //Obsolete code for additional obstacle avoidance by slight turning radius
       if((sensorDat[0] < sensorDat[2] ) && (sensorDat[0] < 350 && sensorDat[2] > 350) )
       {
-        adj = 40;
+        adj = 0;
       }
       else if((sensorDat[0] > sensorDat[2] ) && (sensorDat[0] > 350 && sensorDat[2] < 350))
       {
-        adj = -40;
+        adj = -0;
       }
 
         motorSpeedL = 150 + adj;
@@ -141,8 +158,10 @@ void navigateToTarget()
 
     case ObstacleAvoidance:
 
+        //Handling of the object detection
         if (centerObjectDetected)
         {
+            // IF 3 of the paths are blocked, go backwards
             if (leftObjectDetected && rightObjectDetected)
             {
                 motorSpeedL = -150;
@@ -150,31 +169,33 @@ void navigateToTarget()
                 break;
             }
 
+            // If left obstacle is closer turn right
             if (sensorDat[1] < sensorDat[2])
             {
                 motorSpeedL = 150;
                 motorSpeedR = -150;
-            }
+            }// If right obstacle is closer turn left
             else
             {
                 motorSpeedL = -150;
                 motorSpeedR = 150;
             }
         }
-        else if (leftObjectDetected)
+        else if (leftObjectDetected) // IF only left object is detected turn right
         {
             motorSpeedL = 200;
             motorSpeedR = -200;
         }
-        else if (rightObjectDetected)
+        else if (rightObjectDetected) // IF only right object is detected turn right
         {
             motorSpeedL = -200;
             motorSpeedR = 200;
         }
 
+        // Condition to leave the obstacle avoidance state
         if (!leftObjectDetected && !centerObjectDetected && !rightObjectDetected)
         {
-
+            // Ensures that the obstacle avoidance is ran at least 300 milliseconds
             if (millis() - lastObstacleDetectedTime > 300)
             {
                 currentState = Navigation;
@@ -185,11 +206,12 @@ void navigateToTarget()
         break;
 
     case Correction:
-        // Recovery state logic
+        // Correction state logic
         leftObjectDetected = sensorDat[0] < 50;
         centerObjectDetected = sensorDat[1] < 50;
         rightObjectDetected = sensorDat[2] < 50;
 
+        // Additional obstacle avoidance on correction function, This ensures the rover wont scrape against the obstacles while correcting
         if (leftObjectDetected || centerObjectDetected || rightObjectDetected)
         {
 
@@ -198,6 +220,7 @@ void navigateToTarget()
             break;
         }
 
+        // Corrects angle error until it is less then degrees when the distance to the target is larger than 40
         if (error > 10 && distance > 40)
         {
             motorSpeedL = 100;
@@ -215,6 +238,7 @@ void navigateToTarget()
         break;
     }
 
+    // Safeguard for the motor values
     if (motorSpeedL < -255)
     {
         motorSpeedL = -255;
@@ -238,6 +262,7 @@ void loop()
 {
     if (awsClient.stayConnected() == true)
     {
+        //Watchdog reset with on every successfull cycle with a message received
         esp_task_wdt_reset();
     }
     delay(10);
@@ -256,14 +281,16 @@ void motorDriver(void *parameter)
 
         navigateToTarget();
 
+        // Counter for cycles since the last message is received
         if (messageFlag == true)
         {
-
+            // Reseting the counter when a message is received successfully
             finishedCounter = 0;
             messageFlag = false;
         }
         else
         {
+            // IF counter is greater than 100 (1 Second) reset all of the states and stop the motor
             if (finishedCounter > 100)
             {
                 currentState = IDLE;
@@ -272,6 +299,8 @@ void motorDriver(void *parameter)
                 motorSpeedL = 0;
                 motorSpeedR = 0;
             }
+
+            // Increment the counter
             finishedCounter++;
         }
 
@@ -279,6 +308,8 @@ void motorDriver(void *parameter)
         Serial.print(" "); // Print a space as a separator
         Serial.println(motorSpeedR);
 
+
+        // Motor control wrapper that adjusts the values correctly, taking the absolute value and deciding on the direction
         if (motorSpeedL > 0)
         {
             m.set_speed(MotorL, Forward, motorSpeedL);
