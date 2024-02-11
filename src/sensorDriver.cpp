@@ -1,8 +1,8 @@
 /**
  * ESP32 Sensor Library
- * 
+ *
  * Functions to get distance values from the sensors
- * 
+ *
  * Authors: Vipul Deshpande, Jaime Burbano
  */
 
@@ -17,21 +17,17 @@
 // ESP32 board.  in this code, the pin D2 of the NodeMCU board is used
 // pin D2 --> GP1. This is already done.
 
-
-//documentation here: https://github.com/pololu/opt3101-arduino
+// documentation here: https://github.com/pololu/opt3101-arduino
 
 #include <OPT3101.h>
 #include <Wire.h>
 #include "sensorDriver.h"
 
-
 const uint8_t dataReadyPin = 2;
-
 
 OPT3101 sensor; /* create an object of the sensor class */
 
-
-int16_t distances[3]; /* array where we'll store the values of each sensor pair (Tx-Rx LED) */
+int16_t distances[3];            /* array where we'll store the values of each sensor pair (Tx-Rx LED) */
 volatile bool dataReady = false; /* to determine when the data is ready to be read */
 
 void setDataReadyFlag()
@@ -39,39 +35,45 @@ void setDataReadyFlag()
   dataReady = true;
 }
 
-sclass::sclass() {
+sclass::sclass()
+{
 }
 
-void sclass::SETUP() {
+void sclass::SETUP()
+{
   /* Wire.begin takes two arguments, first being SDA and second being SCL (Wire.begin(SDA,SCL)) */
-  Wire.begin(27,26);
-
+  Wire.begin(27, 26);
 
   Serial.println("starting");
 
   /* Wait for the serial port to be opened before printing */
   /* messages (only applies to boards with native USB) */
-  while (!Serial) {}
+  while (!Serial)
+  {
+  }
 
   sensor.init();
   if (sensor.getLastError()) /* case it is not possible to connect to the sensor */
   {
     Serial.print(F("Failed to initialize OPT3101: error "));
     Serial.println(sensor.getLastError());
-    while (1) {} /* stay */
+    while (1)
+    {
+    } /* stay */
   }
   sensor.setContinuousMode();
   sensor.enableDataReadyOutput(1);
-  sensor.setFrameTiming(32); /* to average the specified number of samples taken before returning a value */
-  sensor.setChannel(OPT3101ChannelAutoSwitch); /* to automatically cycle through all channels */
-  sensor.setBrightness(OPT3101Brightness::Adaptive); /* Adaptive mode automatically uses low or high brightness 
+  sensor.setFrameTiming(32);                         /* to average the specified number of samples taken before returning a value */
+  sensor.setChannel(OPT3101ChannelAutoSwitch);       /* to automatically cycle through all channels */
+  sensor.setBrightness(OPT3101Brightness::Adaptive); /* Adaptive mode automatically uses low or high brightness
   depending on how much reflected light */
- 
+
   attachInterrupt(digitalPinToInterrupt(dataReadyPin), setDataReadyFlag, RISING); /* set given pin as an interuption pin */
   sensor.enableTimingGenerator();
 }
 
-int16_t *sclass::reading() {
+int16_t *sclass::reading()
+{
 
   static int16_t arr[3];
   dataReady = true;
@@ -90,7 +92,7 @@ int16_t *sclass::reading() {
     }
   }
   return arr;
-  dataReady = false;  /* put low to restart the sampling */
+  dataReady = false; /* put low to restart the sampling */
   delay(100);
 }
 
