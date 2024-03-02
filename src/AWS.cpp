@@ -1,11 +1,10 @@
 /**
  * ESP32 AWS Library
- * 
+ *
  * Functions to get the crawler coordinates from the Camera over AWS IoT
- * 
+ *
  * Authors: Vipul Deshpande, Jaime Burbano
  */
-
 
 /*
   Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -30,37 +29,94 @@
 #include "AWS.h"
 
 /* The MQTT topics that this device should publish/subscribe to */
-#define AWS_IOT_PUBLISH_TOPIC   "esp32/pub" 
-#define AWS_IOT_SUBSCRIBE_TOPIC "esp32/target"
+#define AWS_IOT_PUBLISH_TOPIC "esp32/pub"
+// #define AWS_IOT_SUBSCRIBE_ROVER_TOPIC "esp32/target"
+#define AWS_IOT_SUBSCRIBE_ROVER_TOPIC "esp32/rover"
+#define AWS_IOT_SUBSCRIBE_TARGET_TOPIC "esp32/target"
 
 WiFiClientSecure net = WiFiClientSecure();
 MQTTClient client = MQTTClient(256);
 
-myawsclass::myawsclass() {
-
+myawsclass::myawsclass()
+{
 }
 
+int suggestedAngle;
+int currentAngle;
+int currentX;
+int currentY;
+int targetX;
+int targetY;
 
-void messageHandler(String &topic, String &payload) {
-  Serial.println("incoming: " + topic + " - " + payload);
+int conter = 0;
 
-//  StaticJsonDocument<200> doc;
-//  deserializeJson(doc, payload);
-//  const char* message = doc["message"];
+bool targetMessageReceived = false;
+bool roverMessageReceived = false;
+
+bool messageFlag = false;
+
+void messageHandler(String &topic, String &payload)
+{
+
+  StaticJsonDocument<200> doc;
+  deserializeJson(doc, payload);
+  messageFlag = true;
+
+  if (topic == "esp32/rover") // Message about current location
+  {
+    roverMessageReceived = true;
+    if (strlen(doc["rover"]) > 40)
+    {
+      return;
+    }
+
+    if (strlen(doc["rover"]) > 5)
+    {
+      sscanf(doc["rover"], "{21: [(%d, %d), %d]}", &currentX, &currentY, &currentAngle);
+      currentAngle = -currentAngle;
+    }
+
+    if (currentAngle < 0)
+    {
+      currentAngle += 360;
+    }
+  }
+  else if (topic == "esp32/target")  // Message about target location
+  {
+    targetMessageReceived = true;
+    if (strlen(doc["target"]) > 20)
+    {
+      return;
+    }
+
+    if (strlen(doc["target"]) > 5)
+    {
+      sscanf(doc["target"], "(%d, %d)", &targetX, &targetY);
+    }
+  }
 }
 
-void myawsclass::stayConnected() {
-  client.loop();
+bool myawsclass::stayConnected()
+{
+  if (client.loop() == false)
+  {
+
+    return false;
+  }
+
+  return true;
 }
 
-void myawsclass::connectAWS() {
+void myawsclass::connectAWS()
+{
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   Serial.println("Connecting to Wi-Fi");
 
-  while (WiFi.status() != WL_CONNECTED){
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     Serial.print("Connecting...!");
   }
@@ -78,29 +134,32 @@ void myawsclass::connectAWS() {
   /* Create a message handler */
   client.onMessage(messageHandler);
 
-  Serial.print("Connecting to AWS IOT");
+  Serial.println("Connecting to AWS IOT");
 
-  while (!client.connect(THINGNAME)) {
+  while (!client.connect(THINGNAME))
+  {
     Serial.print(".");
     delay(100);
   }
 
-  if(!client.connected())
+  if (!client.connected())
   {
     Serial.println("AWS IoT Timeout!");
     return;
   }
 
   /* Subscribe to a topic */
-  client.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
+  client.subscribe(AWS_IOT_SUBSCRIBE_ROVER_TOPIC);
+  client.subscribe(AWS_IOT_SUBSCRIBE_TARGET_TOPIC);
 
   Serial.println("AWS IoT Connected!");
 }
 
-void myawsclass::publishMessage(int16_t sensorValue) {
+void myawsclass::publishMessage(int16_t sensorValue)
+{
 
   StaticJsonDocument<200> doc;
-  //doc["time"] = millis();
+  // doc["time"] = millis();
   doc["sensor"] = sensorValue;
   char jsonBuffer[512];
   serializeJson(doc, jsonBuffer); /* print to client */
@@ -108,6 +167,4 @@ void myawsclass::publishMessage(int16_t sensorValue) {
   client.publish(AWS_IOT_PUBLISH_TOPIC, jsonBuffer);
 }
 
-myawsclass awsobject = myawsclass();  /* creating an object of class aws */
-
-
+myawsclass awsobject = myawsclass(); /* creating an object of class aws */
